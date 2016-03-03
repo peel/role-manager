@@ -13,6 +13,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-stream-experimental" % akkaHttpV,
   "com.typesafe.akka" %% "akka-http-core-experimental" % akkaHttpV,
   "com.typesafe.akka" %% "akka-http-experimental" % akkaHttpV,
+  "com.typesafe.akka" %% "akka-http-spray-json-experimental" % akkaHttpV,
   "org.iq80.leveldb"            % "leveldb"          % "0.7",
   "org.fusesource.leveldbjni"   % "leveldbjni-all"   % "1.8",
   "com.typesafe.akka" %% "akka-testkit" % akkaV % "test",

@@ -1,17 +1,79 @@
 import akka.actor._
 import akka.persistence._
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
+import akka.http.scaladsl.marshalling.ToResponseMarshallable
+import akka.http.scaladsl.model.StatusCodes._
+import akka.http.scaladsl.server.Directives._
+import akka.stream.ActorMaterializer
+import akka.pattern.ask
+import akka.util.Timeout
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import scala.concurrent.duration._
 
-object Main extends App {
+
+import UserHandler._
+case class UserRoleState(events: List[Event] = Nil) {
+  def updated(evt: Event): UserRoleState = copy(evt :: events)
+  override def toString: String = events.reverse.toString
+}
+case class UserRoleChange(isSubscribed: Boolean)
+
+import spray.json.{DeserializationException, DefaultJsonProtocol,JsValue,JsString, JsonFormat}
+trait JsonProtocols extends DefaultJsonProtocol {
+  implicit object EventFormat extends JsonFormat[Event]{
+    override def write(e: Event) = e match {
+      case Subscribed(time: ZonedDateTime) => JsString("true")
+      case Unsubscribed(time: ZonedDateTime) => JsString("false")
+    }
+    override def read(json: JsValue) = ???
+  }
+  implicit object DateJsonFormat extends JsonFormat[ZonedDateTime] {
+    val formatter = DateTimeFormatter.ISO_ZONED_DATE_TIME
+    override def write(i: ZonedDateTime) = JsString(formatter.format(i))
+    override def read(json: JsValue): ZonedDateTime = json match {
+      case JsString(s) => ZonedDateTime.parse(s, formatter);
+      case _ => throw new DeserializationException("Invalid or not ISO date")
+    }
+  }
+  implicit val roleStateFormat = jsonFormat1(UserRoleState.apply)
+  implicit val roleChangeFormat = jsonFormat1(UserRoleChange.apply)
+}
+
+object Main extends App with JsonProtocols {
   import UsersManager._
 
-  val system = ActorSystem("rolesmanager-system")
+  implicit val system = ActorSystem("rolesmanager-system")
+  implicit val materializer = ActorMaterializer()
+  implicit val dispatcher = system.dispatcher
+  implicit val timeout = Timeout(5 seconds)
   val usersManager = system.actorOf(UsersManager.props, "users-manager")
-  usersManager ! Subscribe(1)
-  usersManager ! Unsubscribe(1)
-  usersManager ! Status(1)
-  usersManager ! Status(2)
 
-  system.awaitTermination()
+  Http().bindAndHandle(interface = "0.0.0.0", port = 8019, handler = {
+    pathPrefix("users" / IntNumber) { userId =>
+      (patch & pathEndOrSingleSlash) {
+        entity(as[UserRoleChange]) { msg =>
+          complete {
+            msg.isSubscribed match {
+              case true =>
+                usersManager ! Subscribe(userId)
+                OK
+              case false =>
+                usersManager ! Unsubscribe(userId)
+                OK
+            }
+          }
+        }
+      } ~
+      (get & pathEndOrSingleSlash) {
+        complete {
+          OK
+          // (usersManager ? Status(userId)).mapTo[Option[UserRoleState]].map(s => s getOrElse NotFound)
+        }
+      }
+    }
+  })
 }
 
 object UsersManager {
@@ -38,10 +100,10 @@ class UsersManager extends Actor with ActorLogging {
       }
     case Subscribe(id) =>
       log.info(s"User $id subscribed sent to ${handler(id)}")
-      handler(id) ! UserHandler.Subscribe
+      handler(id) ! UserHandler.Subscribe(ZonedDateTime.now)
     case Unsubscribe(id) =>
       log.info(s"User $id unsubscribed sent to ${handler(id)}")
-      handler(id) ! UserHandler.Unsubscribe
+      handler(id) ! UserHandler.Unsubscribe(ZonedDateTime.now)
   }
 
   def handler(id: Long) = handlerOpt(id) getOrElse context.actorOf(UserHandler.props(id), id.toString)
@@ -53,12 +115,12 @@ object UserHandler {
 
   sealed trait Command
   case object Get extends Command
-  case object Subscribe extends Command
-  case object Unsubscribe extends Command
+  case class Subscribe(time: ZonedDateTime) extends Command
+  case class Unsubscribe(time: ZonedDateTime) extends Command
 
   sealed trait Event
-  case object Subscribed extends Event
-  case object Unsubscribed extends Event
+  case class Subscribed(time: ZonedDateTime) extends Event
+  case class Unsubscribed(time: ZonedDateTime) extends Event
 }
 class UserHandler(userId: Long) extends PersistentActor with ActorLogging {
   import UserHandler._
@@ -70,13 +132,13 @@ class UserHandler(userId: Long) extends PersistentActor with ActorLogging {
   def receiveCommand: Receive = {
     case Get =>
       sender ! state
-    case Subscribe =>
-      persist(Subscribed){evt =>
+    case Subscribe(time) =>
+      persist(Subscribed(time)) { evt =>
         updateState(evt)
         self.forward(Get)
       }
-    case Unsubscribe =>
-      persist(Unsubscribed){evt =>
+    case Unsubscribe(time) =>
+      persist(Unsubscribed(time)) { evt =>
         updateState(evt)
         self.forward(Get)
       }
@@ -90,10 +152,4 @@ class UserHandler(userId: Long) extends PersistentActor with ActorLogging {
   }
 
   def updateState(event: Event) = state = state.updated(event)
-}
-
-import UserHandler._
-case class UserRoleState(events: List[Event] = Nil) {
-  def updated(evt: Event): UserRoleState = copy(evt :: events)
-  override def toString: String = events.reverse.toString
 }
