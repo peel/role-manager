@@ -1,5 +1,5 @@
-import akka.actor.{ Actor, ActorLogging, ActorRef, ActorSystem, Props }
-import akka.persistence.PersistentActor
+import akka.actor._
+import akka.persistence._
 
 object Main extends App {
   import UsersManager._
@@ -7,8 +7,7 @@ object Main extends App {
   val system = ActorSystem("rolesmanager-system")
   val usersManager = system.actorOf(UsersManager.props, "users-manager")
   usersManager ! Subscribe(1)
-  usersManager ! Subscribe(2)
-  usersManager ! Subscribe(1)
+  usersManager ! Unsubscribe(1)
   usersManager ! Status(1)
   usersManager ! Status(2)
 
@@ -17,13 +16,14 @@ object Main extends App {
 
 object UsersManager {
   def props = Props[UsersManager]
+
   case class Subscribe(id: Long)
-  case object Subscribe
   case class Unsubscribe(id: Long)
-  case object Unsubscribe
   case class Status(id: Long)
   case object Status
+  case object Empty
 }
+
 class UsersManager extends Actor with ActorLogging {
   import UsersManager._
 
@@ -31,17 +31,21 @@ class UsersManager extends Actor with ActorLogging {
     case Status =>
       log.info(s"Get all events")
     case Status(id) =>
-      log.info(s"Get user $id events")
-      handler(id) ! Status
+      log.info(s"Get user $id events sent to ${handler(id)}")
+      handlerOpt(id) match {
+        case Some(h) => h ! UserHandler.Get
+        case None => sender ! Empty
+      }
     case Subscribe(id) =>
-      log.info(s"User $id subscribed")
-      handler(id) ! Subscribe(id)
+      log.info(s"User $id subscribed sent to ${handler(id)}")
+      handler(id) ! UserHandler.Subscribe
     case Unsubscribe(id) =>
-      log.info(s"User $id unsubscribed")
-      handler(id) ! Unsubscribe(id)
+      log.info(s"User $id unsubscribed sent to ${handler(id)}")
+      handler(id) ! UserHandler.Unsubscribe
   }
 
-  def handler(id: Long): ActorRef = context.child(id.toString).getOrElse(context.actorOf(UserHandler.props(id), id.toString))
+  def handler(id: Long) = handlerOpt(id) getOrElse context.actorOf(UserHandler.props(id), id.toString)
+  def handlerOpt(id: Long): Option[ActorRef] = context.child(id.toString)
 }
 
 object UserHandler {
@@ -49,47 +53,47 @@ object UserHandler {
 
   sealed trait Command
   case object Get extends Command
-  case class Subscribe(id: Long) extends Command
-  case class Unsubscribe(id: Long) extends Command
+  case object Subscribe extends Command
+  case object Unsubscribe extends Command
 
   sealed trait Event
-  case class Subscribed(id: Long) extends Event
-  case class Unsubscribed(id: Long) extends Event
-
+  case object Subscribed extends Event
+  case object Unsubscribed extends Event
 }
 class UserHandler(userId: Long) extends PersistentActor with ActorLogging {
   import UserHandler._
 
   override val persistenceId = s"user-roles-$userId"
 
-  var state = RoleState()
+  private var state = UserRoleState(Nil)
 
-  def receiveCommand = {
+  def receiveCommand: Receive = {
     case Get =>
       sender ! state
-    case Subscribe(id) =>
-      persist(Subscribed(id)){evt =>
+    case Subscribe =>
+      persist(Subscribed){evt =>
         updateState(evt)
         self.forward(Get)
       }
-    case Unsubscribe(id) =>
-      persist(Subscribed(id)){evt =>
+    case Unsubscribe =>
+      persist(Unsubscribed){evt =>
         updateState(evt)
         self.forward(Get)
       }
+    case _ =>
+      log.info("received unknown message")
   }
 
   def receiveRecover = {
     case evt: Event => updateState(evt)
+    case SnapshotOffer(_, snapshot: UserRoleState) => state = snapshot
   }
 
-  def updateState(event: Event) = state.updated(event)
+  def updateState(event: Event) = state = state.updated(event)
 }
 
 import UserHandler._
-case class RoleState(events: List[Event] = Nil) {
-
-  def updated(evt: Event): RoleState = copy(evt :: events)
-  def size: Int = events.length
+case class UserRoleState(events: List[Event] = Nil) {
+  def updated(evt: Event): UserRoleState = copy(evt :: events)
   override def toString: String = events.reverse.toString
 }
