@@ -67,10 +67,10 @@ object Main extends App with JsonProtocols {
         }
       } ~
       (get & pathEndOrSingleSlash) {
-        complete {
-          OK
-          // (usersManager ? Status(userId)).mapTo[Option[UserRoleState]].map(s => s getOrElse NotFound)
-        }
+        onSuccess(usersManager ? Status(userId)) {
+            case UserRoleState(evs) => complete(evs)
+            case Empty => complete(NotFound)
+          }
       }
     }
   })
@@ -95,7 +95,7 @@ class UsersManager extends Actor with ActorLogging {
     case Status(id) =>
       log.info(s"Get user $id events sent to ${handler(id)}")
       handlerOpt(id) match {
-        case Some(h) => h ! UserHandler.Get
+        case Some(h) => h.tell(UserHandler.Get, sender)
         case None => sender ! Empty
       }
     case Subscribe(id) =>
@@ -131,6 +131,7 @@ class UserHandler(userId: Long) extends PersistentActor with ActorLogging {
 
   def receiveCommand: Receive = {
     case Get =>
+      log.info(s"received a Get, sending to $sender")
       sender ! state
     case Subscribe(time) =>
       persist(Subscribed(time)) { evt =>
