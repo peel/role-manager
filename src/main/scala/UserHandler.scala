@@ -16,7 +16,7 @@ object UserHandler {
 }
 
 case class UserRoleState(events: List[UserHandler.Event] = Nil) {
-  def updated(evt: UserHandler.Event): UserRoleState = copy(evt :: events)
+  def updated(evt: UserHandler.Event): UserRoleState = copy(evt :: Nil)
   override def toString: String = events.reverse.toString
 }
 
@@ -25,7 +25,7 @@ class UserHandler(userId: Long) extends PersistentActor with ActorLogging {
 
   override val persistenceId = s"user-roles-$userId"
 
-  private var state = UserRoleState(Nil)
+  private var state = UserRoleState()
 
   def receiveCommand: Receive = {
     case Get =>
