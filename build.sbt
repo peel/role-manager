@@ -6,6 +6,7 @@ scalaVersion := "2.11.7"
 
 val akkaV = "2.4.2"
 val akkaHttpV = "2.0.3"
+val eventstoreV = "2.2.1"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor" % akkaV,
@@ -14,8 +15,8 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-http-core-experimental" % akkaHttpV,
   "com.typesafe.akka" %% "akka-http-experimental" % akkaHttpV,
   "com.typesafe.akka" %% "akka-http-spray-json-experimental" % akkaHttpV,
-  "org.iq80.leveldb"            % "leveldb"          % "0.7",
-  "org.fusesource.leveldbjni"   % "leveldbjni-all"   % "1.8",
+  "com.geteventstore" %% "akka-persistence-eventstore" % eventstoreV,
+  "com.geteventstore" %% "eventstore-client" % eventstoreV,
   "com.typesafe.akka" %% "akka-testkit" % akkaV % "test",
   "org.scalatest" %% "scalatest" % "2.2.6" % "test")
 
