@@ -2,6 +2,8 @@ import akka.actor._
 import akka.persistence._
 import java.time.ZonedDateTime
 
+import scala.runtime.ScalaRunTime
+
 object UserHandler {
   def props(id: Long) = Props(new UserHandler(id))
 

@@ -1,26 +1,39 @@
-import spray.json.{ DefaultJsonProtocol, DeserializationException, JsObject, JsString, JsValue, JsBoolean, JsonFormat }
+import spray.json._
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import UserHandler._
 import UsersManager._
 
 trait JsonProtocols extends DefaultJsonProtocol {
-  implicit object EventFormat extends JsonFormat[Event]{
-    override def write(evt: Event) = evt match {
-      case Subscribed(time: ZonedDateTime) => toJson(time, "subscribed")
-      case Unsubscribed(time: ZonedDateTime) => toJson(time, "unsubscribed")
-    }
-    override def read(json: JsValue) = ??? //not used
-    private def toJson(time: ZonedDateTime, role: String) = JsObject(
-      ("date", JsString(time.format(DateTimeFormatter.ISO_ZONED_DATE_TIME))),
-      ("role", JsString(role)))
-  }
   implicit object DateJsonFormat extends JsonFormat[ZonedDateTime] {
     val formatter = DateTimeFormatter.ISO_ZONED_DATE_TIME
     override def write(i: ZonedDateTime) = JsString(formatter.format(i))
     override def read(json: JsValue): ZonedDateTime = json match {
       case JsString(s) => ZonedDateTime.parse(s, formatter);
       case _ => throw new DeserializationException("Invalid or not ISO date")
+    }
+  }
+  implicit object UnsubscribedFormat extends JsonFormat[Unsubscribed]{
+    override def write(evt: Unsubscribed) = JsObject(
+      ("date", JsString(evt.time.format(DateTimeFormatter.ISO_ZONED_DATE_TIME))),
+      ("role", JsString("false")))
+    override def read(json: JsValue) = ??? //not used
+  }
+  implicit object SubscribedFormat extends JsonFormat[Subscribed]{
+    override def write(evt: Subscribed) = JsObject(
+      ("date", JsString(evt.time.format(DateTimeFormatter.ISO_ZONED_DATE_TIME))),
+      ("role", JsString("true")))
+    override def read(json: JsValue) = ??? //not used
+  }
+  implicit object EventFormat extends JsonFormat[Event]{
+    override def write(evt: Event) = evt match {
+      case s: Subscribed => s.toJson
+      case u: Unsubscribed => u.toJson
+    }
+    override def read(json: JsValue) = json.asJsObject.getFields("date", "role") match {
+      case Seq(JsString(date),JsString(role)) if role == "true" => Subscribed(ZonedDateTime.parse(date, DateTimeFormatter.ISO_ZONED_DATE_TIME))
+      case Seq(JsString(date),JsString(role)) if role != "true" => Unsubscribed(ZonedDateTime.parse(date, DateTimeFormatter.ISO_ZONED_DATE_TIME))
+      case err => deserializationError(s"Event expected but not found: $err")
     }
   }
   implicit val roleStateFormat = jsonFormat1(UserRoleState.apply)

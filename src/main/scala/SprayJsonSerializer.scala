@@ -1,9 +1,9 @@
-package journal
-
+import UserHandler.{ Subscribed, Unsubscribed }
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
 
 import akka.actor.ExtendedActorSystem
+import akka.persistence.eventstore.EventStoreSerializer
 import akka.persistence.eventstore.snapshot.EventStoreSnapshotStore.SnapshotEvent
 import akka.persistence.eventstore.snapshot.EventStoreSnapshotStore.SnapshotEvent.Snapshot
 import akka.persistence.{ PersistentRepr, SnapshotMetadata }
@@ -34,7 +34,7 @@ class SprayJsonSerializer(val system: ExtendedActorSystem) extends EventStoreSer
 
   def toBinary(x: AnyRef) = {
     val json = classFormat(classFor(x)).write(x)
-    val str = json.compactPrint
+    val str = json.toString
     str.getBytes(UTF8)
   }
 
@@ -67,7 +67,7 @@ object SprayJsonSerializer {
   val UTF8: Charset = Charset.forName("UTF-8")
   val Identifier: Int = ByteBuffer.wrap("spray-json".getBytes(UTF8)).getInt
 
-  class JsonProtocol(system: ExtendedActorSystem) extends DefaultJsonProtocol {
+  class JsonProtocol(system: ExtendedActorSystem) extends DefaultJsonProtocol with JsonProtocols {
     val SnapshotMetadataFormat = jsonFormat3(SnapshotMetadata.apply)
     val ClassFormat = Map(
       entry(jsonFormat3(SnapshotMetadata.apply)),
@@ -96,26 +96,26 @@ object SprayJsonSerializer {
 
     object PersistenceReprFormat extends JsonFormat[PersistentRepr] {
 
-      val format = jsonFormat6(Mapping.apply)
+      val format = jsonFormat5(Mapping.apply)
 
       def read(json: JsValue) = {
         val x = format.read(json)
         PersistentRepr(
-          payload = x.payload,
+          payload = x.payload.parseJson.convertTo[UserHandler.Event],
           sequenceNr = x.sequenceNr,
           persistenceId = x.persistenceId,
           manifest = x.manifest,
-          sender = system.provider.resolveActorRef(x.sender),
+          // sender = system.provider.resolveActorRef(x.sender),
           writerUuid = x.writerUuid)
       }
 
       def write(x: PersistentRepr) = {
         val mapping = Mapping(
-          payload = x.payload.asInstanceOf[String],
+          payload = x.payload.asInstanceOf[UserHandler.Event].toJson.toString,
           sequenceNr = x.sequenceNr,
           persistenceId = x.persistenceId,
           manifest = x.manifest,
-          sender = x.sender.path.toSerializationFormat,
+          // sender = x.sender.path.toSerializationFormat,
           writerUuid = x.writerUuid)
         format.write(mapping)
       }
@@ -125,7 +125,7 @@ object SprayJsonSerializer {
         sequenceNr: Long,
         persistenceId: String,
         manifest: String,
-        sender: String,
+        // sender: String,
         writerUuid: String)
     }
   }
