@@ -13,7 +13,8 @@ object UserHandler {
   case class Subscribe(time: ZonedDateTime, publication: Publication) extends Command
   case class Unsubscribe(time: ZonedDateTime, publication: Publication) extends Command
 
-  sealed trait Event{
+  sealed trait Event {
+    def time: ZonedDateTime
     def publication: Publication
   }
   case class Subscribed(time: ZonedDateTime, publication: Publication) extends Event

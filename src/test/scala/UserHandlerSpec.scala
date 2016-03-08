@@ -19,8 +19,8 @@ class UserHandlerActorSpec(_system: ActorSystem) extends TestKit(_system) with I
     "set event of subscription or unsubscription" in {
       val handler = system.actorOf(UserHandler.props(1))
       val time = java.time.ZonedDateTime.now
-      handler ! UserHandler.Subscribe(time)
-      expectMsg(UserRoleState(List[UserHandler.Event](UserHandler.Subscribed(time))))
+      handler ! UserHandler.Subscribe(time, Publication.Nwt)
+      expectMsg(UserRoleState(List[UserHandler.Event](UserHandler.Subscribed(time, Publication.Nwt))))
     }
   }
 }

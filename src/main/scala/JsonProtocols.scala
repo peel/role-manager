@@ -2,7 +2,6 @@ import spray.json._
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import UserHandler._
-import UsersManager._
 
 trait JsonProtocols extends DefaultJsonProtocol {
   implicit object DateJsonFormat extends JsonFormat[ZonedDateTime] {
