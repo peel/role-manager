@@ -6,36 +6,41 @@ import Publication.Publication
 
 trait JsonProtocols extends DefaultJsonProtocol {
   implicit object DateJsonFormat extends JsonFormat[ZonedDateTime] {
-    val formatter = DateTimeFormatter.ISO_ZONED_DATE_TIME
-    override def write(i: ZonedDateTime) = JsString(formatter.format(i))
+    private val formatter = DateTimeFormatter.ISO_ZONED_DATE_TIME
+    override def write(i: ZonedDateTime): JsValue = JsString(formatter.format(i))
     override def read(json: JsValue): ZonedDateTime = json match {
       case JsString(s) => ZonedDateTime.parse(s, formatter);
       case _ => throw new DeserializationException("Invalid or not ISO date")
     }
   }
   implicit object EventFormat extends JsonFormat[Event] {
+    private val JsonDate = "date"
+    private val JsonIsActive = "isActive"
+    private val JsonPublication = "publication"
+
     override def write(evt: Event): JsValue = evt match {
       case e: Subscribed => writeJson(e.time, true, e.publication)
       case e: Unsubscribed => writeJson(e.time, false, e.publication)
     }
-    def writeJson(time: ZonedDateTime, status: Boolean, publication: Publication) = JsObject(
-      ("date", JsString(time.format(DateTimeFormatter.ISO_ZONED_DATE_TIME))),
-      ("isActive", JsBoolean(status)),
-      ("publication", publication.toJson)
+    private def writeJson(time: ZonedDateTime, status: Boolean, publication: Publication): JsValue = JsObject(
+      (JsonDate, JsString(time.format(DateTimeFormatter.ISO_ZONED_DATE_TIME))),
+      (JsonIsActive, JsBoolean(status)),
+      (JsonPublication, publication.toJson)
     )
 
-    override def read(json: JsValue) = json.asJsObject.getFields("date", "isActive", "publication") match {
-      case Seq(JsString(date), JsBoolean(isActive), pub) if isActive == true =>
+    override def read(json: JsValue): Event = json.asJsObject.getFields(JsonDate, JsonIsActive, JsonPublication) match {
+      case Seq(JsString(date), JsBoolean(isActive), pub) if isActive =>
         Subscribed(ZonedDateTime.parse(date, DateTimeFormatter.ISO_ZONED_DATE_TIME), pub.convertTo[Publication.Publication])
-      case Seq(JsString(date), JsBoolean(isActive), pub) if isActive == false =>
+      case Seq(JsString(date), JsBoolean(isActive), pub) if !isActive =>
         Unsubscribed(ZonedDateTime.parse(date, DateTimeFormatter.ISO_ZONED_DATE_TIME), pub.convertTo[Publication.Publication])
-      case err =>
-        deserializationError(s"Event expected but found: $err")
+      case _ =>
+        deserializationError(s"Event expected but not found")
     }
   }
   implicit object PublicationFormat extends JsonFormat[Publication.Publication] {
     override def read(json: JsValue): Publication.Publication = json.asJsObject.getFields("name") match {
       case Seq(JsString(name)) => Publication.find(name).getOrElse(deserializationError("Unknown publication"))
+      case _ => deserializationError("Cannot parse persistent publication data")
     }
     override def write(p: Publication.Publication): JsValue = JsObject("name" -> JsString(p.toString))
   }

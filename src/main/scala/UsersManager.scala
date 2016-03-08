@@ -32,6 +32,6 @@ class UsersManager extends Actor with ActorLogging {
       handler(id) ! UserHandler.Unsubscribe(ZonedDateTime.now, role)
   }
 
-  def handler(id: Long) = handlerOpt(id) getOrElse context.actorOf(UserHandler.props(id), id.toString)
-  def handlerOpt(id: Long): Option[ActorRef] = context.child(id.toString)
+  private def handler(id: Long) = handlerOpt(id) getOrElse context.actorOf(UserHandler.props(id), id.toString)
+  private def handlerOpt(id: Long): Option[ActorRef] = context.child(id.toString)
 }

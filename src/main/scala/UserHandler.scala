@@ -14,7 +14,7 @@ object UserHandler {
   case class Unsubscribe(time: ZonedDateTime, publication: Publication) extends Command
 
   sealed trait Event
-  trait SubscriptionEvent extends Event {
+  sealed trait SubscriptionEvent extends Event {
     def time: ZonedDateTime
     def publication: Publication
   }
@@ -27,9 +27,9 @@ case class UserRoleState(events: List[UserHandler.Event] = Nil) {
     case e: UserHandler.Unsubscribed => updated(e)
     case e: UserHandler.Subscribed => updated(e)
   }
-  def updated(evt: UserHandler.Unsubscribed): UserRoleState = copy(filterNot(events, evt))
-  def updated(evt: UserHandler.Subscribed): UserRoleState = copy(evt :: filterNot(events, evt))
-  def filterNot(events: List[UserHandler.Event], event: UserHandler.SubscriptionEvent) = events.filterNot(e => e match {
+  private def updated(evt: UserHandler.Unsubscribed): UserRoleState = copy(filterNot(events, evt))
+  private def updated(evt: UserHandler.Subscribed): UserRoleState = copy(evt :: filterNot(events, evt))
+  private def filterNot(events: List[UserHandler.Event], event: UserHandler.SubscriptionEvent) = events.filterNot(e => e match {
     case UserHandler.Subscribed(time, publication) if publication == event.publication => true
     case _ => false
   })
@@ -67,5 +67,5 @@ class UserHandler(userId: Long) extends PersistentActor with ActorLogging {
     case SnapshotOffer(_, snapshot: UserRoleState) => state = snapshot
   }
 
-  def updateState(event: Event) = state = state.updated(event)
+  private def updateState(event: Event) = state = state.updated(event)
 }

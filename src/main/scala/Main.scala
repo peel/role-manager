@@ -10,18 +10,25 @@ import akka.pattern.ask
 import akka.util.Timeout
 import scala.concurrent.duration._
 import Publication._
+import com.typesafe.config.ConfigFactory
 
 case class UserRoleChange(isSubscribed: Boolean, publication: Publication)
 
-object Main extends App with JsonProtocols {
+trait Config {
+  protected val config = ConfigFactory.load()
+  protected val interface = config.getString("http.interface")
+  protected val port = config.getInt("http.port")
+}
+
+object Main extends App with JsonProtocols with Config {
   implicit val system = ActorSystem("rolesmanager-system")
   implicit val materializer = ActorMaterializer()
   implicit val dispatcher = system.dispatcher
   implicit val timeout = Timeout(5 seconds)
+
   val usersManager = system.actorOf(UsersManager.props, "users-manager")
 
-
-  Http().bindAndHandle(interface = "0.0.0.0", port = 8019, handler = {
+  Http().bindAndHandle(interface = interface, port = port, handler = {
     pathPrefix("users" / IntNumber) { userId =>
       (patch & pathEndOrSingleSlash) {
         entity(as[UserRoleChange]) { msg =>
