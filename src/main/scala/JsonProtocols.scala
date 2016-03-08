@@ -1,8 +1,9 @@
-import spray.json._
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
-import UserHandler._
+
 import Publication.Publication
+import UserHandler._
+import spray.json._
 
 trait JsonProtocols extends DefaultJsonProtocol {
   implicit object DateJsonFormat extends JsonFormat[ZonedDateTime] {
@@ -37,23 +38,13 @@ trait JsonProtocols extends DefaultJsonProtocol {
         deserializationError(s"Event expected but not found")
     }
   }
-  implicit object PublicationFormat extends JsonFormat[Publication.Publication] {
-    override def read(json: JsValue): Publication.Publication = json.asJsObject.getFields("name") match {
+  implicit object PublicationFormat extends JsonFormat[Publication] {
+    override def read(json: JsValue): Publication = json.asJsObject.getFields("name") match {
       case Seq(JsString(name)) => Publication.find(name).getOrElse(deserializationError("Unknown publication"))
       case _ => deserializationError("Cannot parse persistent publication data")
     }
-    override def write(p: Publication.Publication): JsValue = JsObject("name" -> JsString(p.toString))
+    override def write(p: Publication): JsValue = JsObject("name" -> JsString(p.toString))
   }
   implicit val roleStateFormat = jsonFormat1(UserRoleState.apply)
   implicit val roleChangeFormat = jsonFormat2(UserRoleChange.apply)
-}
-
-object Publication extends Enumeration {
-  type Publication = Value
-  val Mt = Value("mt")
-  val Sla = Value("sla")
-  val Nwt = Value("nwt")
-  val Ep = Value("ep")
-
-  def find(str: String): Option[Publication] = Publication.values.find(_.toString == str)
 }

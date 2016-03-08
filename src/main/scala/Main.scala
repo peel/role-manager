@@ -1,18 +1,16 @@
+import scala.concurrent.duration._
+
+import Publication._
 import akka.actor._
-import akka.persistence._
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives._
-import akka.stream.ActorMaterializer
 import akka.pattern.ask
+import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import scala.concurrent.duration._
-import Publication._
 import com.typesafe.config.ConfigFactory
-
-case class UserRoleChange(isSubscribed: Boolean, publication: Publication)
 
 trait Config {
   protected val config = ConfigFactory.load()

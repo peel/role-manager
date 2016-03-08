@@ -1,9 +1,10 @@
-import Publication._
-import akka.actor._
-import akka.persistence._
 import java.time.ZonedDateTime
 
 import scala.runtime.ScalaRunTime
+
+import Publication._
+import akka.actor._
+import akka.persistence._
 
 object UserHandler {
   def props(id: Long) = Props(new UserHandler(id))
@@ -20,21 +21,6 @@ object UserHandler {
   }
   case class Subscribed(time: ZonedDateTime, publication: Publication) extends SubscriptionEvent
   case class Unsubscribed(time: ZonedDateTime, publication: Publication) extends SubscriptionEvent
-}
-
-case class UserRoleState(events: List[UserHandler.Event] = Nil) {
-  def updated(evt: UserHandler.Event): UserRoleState = evt match {
-    case e: UserHandler.Unsubscribed => updated(e)
-    case e: UserHandler.Subscribed => updated(e)
-  }
-  private def updated(evt: UserHandler.Unsubscribed): UserRoleState = copy(filterNot(events, evt))
-  private def updated(evt: UserHandler.Subscribed): UserRoleState = copy(evt :: filterNot(events, evt))
-  private def filterNot(events: List[UserHandler.Event], event: UserHandler.SubscriptionEvent) = events.filterNot(e => e match {
-    case UserHandler.Subscribed(time, publication) if publication == event.publication => true
-    case _ => false
-  })
-
-  override def toString: String = events.reverse.toString
 }
 
 class UserHandler(userId: Long) extends PersistentActor with ActorLogging {
