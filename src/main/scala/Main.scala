@@ -9,8 +9,9 @@ import akka.stream.ActorMaterializer
 import akka.pattern.ask
 import akka.util.Timeout
 import scala.concurrent.duration._
+import Publication._
 
-case class UserRoleChange(isSubscribed: Boolean)
+case class UserRoleChange(isSubscribed: Boolean, publication: Publication)
 
 object Main extends App with JsonProtocols {
   implicit val system = ActorSystem("rolesmanager-system")
@@ -27,10 +28,10 @@ object Main extends App with JsonProtocols {
           complete {
             msg.isSubscribed match {
               case true =>
-                usersManager ! UsersManager.Subscribe(userId)
+                usersManager ! UsersManager.Subscribe(userId, msg.publication)
                 OK
               case false =>
-                usersManager ! UsersManager.Unsubscribe(userId)
+                usersManager ! UsersManager.Unsubscribe(userId, msg.publication)
                 OK
             }
           }

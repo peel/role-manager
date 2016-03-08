@@ -16,32 +16,47 @@ trait JsonProtocols extends DefaultJsonProtocol {
   implicit object UnsubscribedFormat extends JsonFormat[Unsubscribed]{
     override def write(evt: Unsubscribed) = JsObject(
       ("date", JsString(evt.time.format(DateTimeFormatter.ISO_ZONED_DATE_TIME))),
-      ("role", JsString(Role.Unsubscribed.toString)))
+      ("isActive", JsBoolean(false)),
+      ("publication", evt.publication.toJson))
     override def read(json: JsValue) = ??? //not used
   }
   implicit object SubscribedFormat extends JsonFormat[Subscribed]{
     override def write(evt: Subscribed) = JsObject(
       ("date", JsString(evt.time.format(DateTimeFormatter.ISO_ZONED_DATE_TIME))),
-      ("role", JsString(Role.Subscribed.toString)))
+      ("isActive", JsBoolean(true)),
+      ("publication", evt.publication.toJson))
     override def read(json: JsValue) = ??? //not used
   }
   implicit object EventFormat extends JsonFormat[Event]{
-    override def write(evt: Event) = evt match {
+    override def write(evt: Event): JsValue = evt match {
       case s: Subscribed => s.toJson
       case u: Unsubscribed => u.toJson
     }
-    override def read(json: JsValue) = json.asJsObject.getFields("date", "role") match {
-      case Seq(JsString(date),JsString(role)) if role == Role.Subscribed.toString => Subscribed(ZonedDateTime.parse(date, DateTimeFormatter.ISO_ZONED_DATE_TIME))
-      case Seq(JsString(date),JsString(role)) if role != Role.Unsubscribed.toString => Unsubscribed(ZonedDateTime.parse(date, DateTimeFormatter.ISO_ZONED_DATE_TIME))
-      case err => deserializationError(s"Event expected but found: $err")
+    override def read(json: JsValue) = json.asJsObject.getFields("date", "isActive", "publication") match {
+      case Seq(JsString(date),JsBoolean(isActive), pub) if isActive == true =>
+        Subscribed(ZonedDateTime.parse(date, DateTimeFormatter.ISO_ZONED_DATE_TIME),pub.convertTo[Publication.Publication])
+      case Seq(JsString(date),JsBoolean(isActive), pub) if isActive == false =>
+        Unsubscribed(ZonedDateTime.parse(date, DateTimeFormatter.ISO_ZONED_DATE_TIME), pub.convertTo[Publication.Publication])
+      case err =>
+        deserializationError(s"Event expected but found: $err")
     }
   }
+  implicit object PublicationFormat extends JsonFormat[Publication.Publication] {
+    override def read(json: JsValue): Publication.Publication = json.asJsObject.getFields("name") match {
+      case Seq(JsString(name)) => Publication.find(name).getOrElse(deserializationError("Unknown publication"))
+    }
+    override def write(p: Publication.Publication): JsValue = JsObject("name" -> JsString(p.toString))
+  }
   implicit val roleStateFormat = jsonFormat1(UserRoleState.apply)
-  implicit val roleChangeFormat = jsonFormat1(UserRoleChange.apply)
+  implicit val roleChangeFormat = jsonFormat2(UserRoleChange.apply)
 }
 
-object Role extends Enumeration{
-  type Role = Value
-  val Subscribed = Value("subscribed")
-  val Unsubscribed = Value("unsubscribed")
+object Publication extends Enumeration{
+  type Publication = Value
+  val Mt = Value("mt")
+  val Sla = Value("sla")
+  val Nwt = Value("nwt")
+  val Ep = Value("ep")
+
+  def find(str: String): Option[Publication] = Publication.values.find(_.toString == str)
 }
