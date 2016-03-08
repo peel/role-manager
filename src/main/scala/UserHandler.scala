@@ -13,12 +13,13 @@ object UserHandler {
   case class Subscribe(time: ZonedDateTime, publication: Publication) extends Command
   case class Unsubscribe(time: ZonedDateTime, publication: Publication) extends Command
 
-  sealed trait Event {
+  sealed trait Event
+  trait SubscriptionEvent extends Event {
     def time: ZonedDateTime
     def publication: Publication
   }
-  case class Subscribed(time: ZonedDateTime, publication: Publication) extends Event
-  case class Unsubscribed(time: ZonedDateTime, publication: Publication) extends Event
+  case class Subscribed(time: ZonedDateTime, publication: Publication) extends SubscriptionEvent
+  case class Unsubscribed(time: ZonedDateTime, publication: Publication) extends SubscriptionEvent
 }
 
 case class UserRoleState(events: List[UserHandler.Event] = Nil) {
@@ -28,7 +29,7 @@ case class UserRoleState(events: List[UserHandler.Event] = Nil) {
   }
   def updated(evt: UserHandler.Unsubscribed): UserRoleState = copy(filterNot(events, evt))
   def updated(evt: UserHandler.Subscribed): UserRoleState = copy(evt :: filterNot(events, evt))
-  def filterNot(events: List[UserHandler.Event], event: UserHandler.Event) = events.filterNot(e => e match {
+  def filterNot(events: List[UserHandler.Event], event: UserHandler.SubscriptionEvent) = events.filterNot(e => e match {
     case UserHandler.Subscribed(time, publication) if publication == event.publication => true
     case _ => false
   })
